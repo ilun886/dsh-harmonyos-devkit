@@ -1,0 +1,83 @@
+# ============================================================================
+# dsh-harmonyos-arkts — DSH 组合包（bundle）patch
+# ============================================================================
+# 这是插件的"挂载声明"。DSH 启动时按 bundle 层栈叠加各插件 patch，
+# 本文件把 HarmonyOS/ArkTS 开发套件插入 profile 的配置树。
+#
+# 安装（profile 名按需替换，本机为 desktop）：
+#   dsh plugin --profile desktop add link:D:\dsh-harmonyos-arkts
+#
+# 提供的四件事：
+#   1. 5 个鸿蒙 skill      —— 由本包 lib/index.js 从 skills/ 读取并注册
+#   2. arkts_rules 工具    —— 按需查询捆绑的 ArkTS/ArkUI 规则库
+#   3. arkts_check 工具    —— 离线 ArkTS 静态检查（无需工程 READY）
+#   4. 规则库提示词        —— 仅当 arkts_rules 可见时注入
+#
+# ⚠️ 全局提醒：鸿蒙工程不能放在含非 ASCII 字符（中文等）的路径下，
+#    否则 hvigor 报 00306003 Invalid project path 直接拒绝构建。
+# ============================================================================
+
+# ── 1. 本插件主体：skills + 两个工具 + 提示词 ─────────────────────────────
+# 【为什么 skills 不走 patch 里的 bundledSkillDir】那需要拼一个绝对路径，
+#   而 host 进程里并没有 DSH_PROFILE_DIR（该变量只由 shell-env 注入给 shell
+#   子进程，不写给 host）。首版据此配置导致挂载失败，故改为在 lib/index.js
+#   里用 import.meta.url 定位 skills/ 并调用 ctx.skills.register() 注册。
+- insert:
+    - id: harmonyos-arkts
+      name: dsh-harmonyos-arkts
+
+# ── 2. devecocli MCP（HarmonyOS LSP）—— 默认关闭 ─────────────────────────
+# 【为什么默认关闭】该 MCP 服务是**单工程绑定**的：PROJECT_PATH 写死在配置里，
+#   而本机 dsh-mcp-client 未实现 roots 能力（lib/index.js 里搜不到 listRoots），
+#   服务端无法自动探测工程。PROJECT_PATH 为空时服务虽能启动，但每次工具调用都
+#   报「没有配置工程路径」—— 白白产生启动噪音。故用 disabled 表达式让它只在
+#   你显式点名工程时才挂载。
+#
+# 【启用方法】设置环境变量后重启 DSH：
+#     setx DSH_HARMONY_PROJECT "C:\Users\86198\DevEcoStudioProjects\MyApplication"
+#   （换工程 = 改这个变量 + 重启；一次只能对一个工程生效）
+#
+# 【为什么 command 是 node + cli.js 绝对路径】npm 生成的 devecocli.cmd/.ps1 是
+#   包装脚本，MCP 的 stdio spawn 不经过 shell、无法执行它们；cli.js 才是真实入口
+#   （见 devecocli 包 package.json 的 bin 字段）。可用 DSH_DEVECO_NODE /
+#   DSH_DEVECO_CLI 覆盖这两个默认值。
+#
+# 【为什么 command 不能直接用 process.execPath】宿主是 Electron，execPath 指向
+#   "D:\deep seek\DeepSeek Harness.exe"。它**只在** ELECTRON_RUN_AS_NODE=1 时才
+#   表现得像 node —— 而那是个**进程级**变量（非 User/Machine 持久变量，实测确认），
+#   不保证存在。故按「DSH_DEVECO_NODE → 系统 node 绝对路径 → PATH 上的 node」
+#   三级探测，最后才退回 execPath。
+#
+# 【toolCallTimeoutMs=180000】服务端就绪前持续返回 "please retry in 10 seconds"，
+#   冷启动实测 >60s（hvigor 的 CompileArkTS 单步即可 1 分钟以上），默认 60s 会中途超时。
+#
+# 【注意】此 MCP 需工程先完成 ohpm install + hvigor sync 才可用。日常改完 .ets
+#   想立刻自检，用本包的 arkts_check 更快（秒级、无需工程 READY）。
+#
+# ⚠️【env 里绝不能出现 undefined 值】这是踩过的坑：mcp-deveco 的 Config 是
+#   z.dict(String)，**拒绝 undefined**。而 schemastery 的报错信息会先经
+#   JSON.stringify（undefined 被丢弃），于是报错长这样：
+#       "expected {...} but got {"serverName":"deveco","transport":"stdio",...}"
+#   —— 打印出来的配置**看起来完全合法**，极易误判成别的问题。
+#   所以 env 必须整体由一条 !!js 表达式构造（未设变量时返回空对象 {}，
+#   绝不能出现值为 undefined 的键）。
+#   实测：env:{P:undefined} → FAIL；env:{} → OK；cwd:undefined → OK；env 省略 → OK。
+- insert:
+    - id: mcp-deveco
+      name: '@deepseek-ai/dsh-mcp-client'
+      disabled: !!js '!process.env.DSH_HARMONY_PROJECT'
+      config:
+        serverName: deveco
+        transport: stdio
+        command: !!js "process.env.DSH_DEVECO_NODE || (process.getBuiltinModule('node:fs').existsSync('C:/Program Files/nodejs/node.exe') ? 'C:/Program Files/nodejs/node.exe' : process.execPath)"
+        args:
+          - !!js 'process.env.DSH_DEVECO_CLI || (process.env.APPDATA + "\\npm\\node_modules\\@deveco\\deveco-cli\\dist\\cli.js")'
+          - 'serve'
+          - 'mcp'
+        # env 整体由一条表达式产出：未设 DSH_HARMONY_PROJECT 时得到 {}（合法），
+        # 设了才得到 { PROJECT_PATH: <路径> }。
+        env: !!js 'process.env.DSH_HARMONY_PROJECT ? { PROJECT_PATH: process.env.DSH_HARMONY_PROJECT } : {}'
+        # cwd 用空串兜底（schema 的默认值就是 ""），未设变量时不会产生 undefined。
+        cwd: !!js "process.env.DSH_HARMONY_PROJECT || ''"
+        toolCallTimeoutMs: 180000
+        failOnStartupError: false

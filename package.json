@@ -1,0 +1,31 @@
+{
+  "name": "dsh-harmonyos-arkts",
+  "version": "0.1.0",
+  "description": "HarmonyOS / ArkTS 开发套件（DSH 组合包）：内置 ArkTS·ArkUI 规则库并按需注入、44 个鸿蒙官方 skill（覆盖 ArkTS/ArkUI 开发、DFX 崩溃与内存/FD 泄漏分析、Kit 集成、多设备与折叠屏适配、测试、迁移）、devecocli MCP（LSP：hover/definition/references/documentSymbol/callHierarchy）、以及可离线运行的 arkts_check 静态检查工具（自带 linter-cli，无需工程 READY）。",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "harmonyos",
+    "arkts",
+    "arkui",
+    "deveco"
+  ],
+  "type": "module",
+  "main": "lib/index.js",
+  "files": [
+    "lib",
+    "rules",
+    "skills",
+    "scripts",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "MIT",
+  "private": true
+}

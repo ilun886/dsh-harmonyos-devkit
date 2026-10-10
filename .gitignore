@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────
+#  dsh-harmonyos-arkts
+# ─────────────────────────────────────────────────────────────
+#
+# ⚠️ 重要：此处**故意不**全局排除 node_modules。
+#
+# skills/hmos-arkts-knowledge-retriever/linter-cli/node_modules/
+# 是 arkts_check 工具的运行时依赖（含 ohos-typescript，约 38 MB），
+# 必须随仓库分发。全局写 `node_modules/` 会让该工具直接失效。
+#
+# 该目录内的 .gitignore 已经精确处理了它自己需要排除的东西。
+
+# ── 机器相关产物：绝对不能进仓库 ──
+# linter-cli 每次运行都会在自身安装目录生成缓存，
+# 其中 sdk-configs 按本机绝对路径命名（如 D_DevEco_Studio_sdk_...）。
+# 提交它会把个人机器路径泄露出去。
+skills/**/linter-cache/
+**/linter-cache/
+
+# ── 运行时/构建产物 ──
+*.tsbuildinfo
+skills/hmos-arkts-knowledge-retriever/linter-cli/runtime/compiler/node_modules/
+
+# ── 临时与备份文件 ──
+*.bak
+*.bak-*
+*.tmp
+*.log
+*.orig
+*.rej
+*~
+*.swp
+Thumbs.db
+desktop.ini
+
+# ── 测试/探针文件（本项目约定以下划线开头的为临时验证脚本）──
+_*.mjs
+_*.js
+
+# ── 编辑器与工具 ──
+.vscode/
+.idea/
+.clangd
+.clang-format
+.clang-tidy
+.cxx/
+.preview/
+.test/
+.hvigor/
+.appanalyzer/
+
+# ── 构建输出 ──
+/build/
+/out/
+/dist/
+/oh_modules/
