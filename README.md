@@ -57,6 +57,51 @@ HarmonyOS / ArkTS 开发套件，打包为 **一个 DSH 组合包（bundle）**�
 
 ---
 
+## ⚠️ Windows 克隆：必须用短路径（否则会静默缺文件）
+
+本仓库内含超深目录嵌套，**最长相对路径达 240 字符**（位于
+`skills/hmos-one-sdk-skill/.../hiappevent-watcher-resourceleak-events-arkts/`）。
+Windows 的经典路径上限是 260 字符，因此：
+
+| 克隆到 | 结果 |
+|---|---|
+| `D:\t`（2 字符） | ✅ 完整 4749 文件 |
+| `D:\dsh-harmonyos-arkts`（23 字符） | ❌ **121 个文件创建失败** |
+
+**克隆者拿不到 `core.longpaths` 配置**（它是本地设置，不会随仓库分发），所以克隆时
+不会报"配置缺失"，而是直接抛一串：
+
+```
+error: unable to create file ...: Filename too long
+```
+
+**注意 `git clone` 在这种情况下仍返回 exit code 0**——不检查文件数就会以为成功了。
+
+三种解法，任选其一：
+
+```powershell
+# ① 克隆到短路径（推荐，零配置）
+git clone <url> D:\t
+
+# ② 克隆时显式开启长路径支持
+git -c core.longpaths=true clone <url> <任意路径>
+
+# ③ 先开全局长路径（一次生效，需管理员）
+git config --global core.longpaths true
+#    可选：同时开启 Windows 系统级支持（Win10 1607+，需管理员 + 重启）
+#    New-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem `
+#      -Name LongPathsEnabled -Value 1 -PropertyType DWord -Force
+```
+
+克隆后请自检文件数应为 **4749**：
+
+```powershell
+(Get-ChildItem . -Recurse -File -Force |
+  Where-Object { $_.FullName -notmatch '\\\.git\\' }).Count
+```
+
+---
+
 ## 安装
 
 ```powershell
